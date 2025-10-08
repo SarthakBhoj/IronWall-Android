@@ -51,7 +51,7 @@ val dummyChats = listOf(
     ChatItem("Team Blue", "Update on the new protocol.", "3 days ago"),
     ChatItem("Spouse Support", "Looking for local resources.", "3 days ago"),
 )
-
+// adding comments
 @Composable
 fun HomeScreen(navController: NavController) {
     val userViewModel: UserVM = viewModel()
