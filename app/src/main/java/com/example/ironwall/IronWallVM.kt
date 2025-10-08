@@ -56,7 +56,7 @@
         // ===== DATABASE =====
         private val db = AppDatabase.getDatabase(application)
         private val dao = db.userDao()
-        private val link = "http://192.168.1.26:8888/"
+        private val link = "http://10.47.187.147:8888/"
 
         // Flow of all users (for local cache)
         val users = dao.getAllUsers()

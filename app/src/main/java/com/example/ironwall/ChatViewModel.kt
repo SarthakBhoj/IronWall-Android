@@ -1,6 +1,5 @@
 package com.example.ironwall
 
-
 import android.app.Application
 import android.util.Log
 import androidx.compose.runtime.mutableStateListOf
@@ -22,7 +21,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
@@ -33,8 +31,6 @@ import ua.naiksoftware.stomp.StompClient
 import ua.naiksoftware.stomp.dto.LifecycleEvent
 import java.util.UUID
 
-
-// --- ChatMessage Data Classes ---
 @Serializable
 data class ChatMessage(
     val id: String? = null,
@@ -43,7 +39,6 @@ data class ChatMessage(
     val content: String,
     val status: String = "SENT",
     val timestamp: String,
-    // Add a field to track if this is decrypted content
     val isDecrypted: Boolean = false
 )
 
@@ -58,7 +53,6 @@ data class DecryptedMessage(
     val content: String
 )
 
-// UI Message wrapper that includes decrypted content
 data class DisplayMessage(
     val message: ChatMessage,
     val decryptedContent: String,
@@ -67,14 +61,10 @@ data class DisplayMessage(
 
 class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val TAG = "ChatViewModel"
-    private val link = "http://192.168.1.26:8888/"
+    private val link = "http://10.47.187.147:8888/"
 
     private var stompClient: StompClient? = null
-
-    // Store raw messages
     private val _rawMessages = mutableStateListOf<ChatMessage>()
-
-    // Store display messages with decrypted content
     private val _displayMessages = mutableStateListOf<DisplayMessage>()
     val messages: SnapshotStateList<DisplayMessage> get() = _displayMessages
 
@@ -97,7 +87,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
         stompClient = Stomp.over(
             Stomp.ConnectionProvider.OKHTTP,
-            "ws://192.168.1.26:8888/chat-websocket"
+            "ws://10.47.187.147:8888/chat-websocket"
         )
 
         stompClient?.lifecycle()?.subscribe { event ->
@@ -128,9 +118,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         stompClient?.topic("/topic/messages/$userId")?.subscribe { topicMessage ->
             try {
                 val message = Json.decodeFromString<ChatMessage>(topicMessage.payload)
-                val safeMessage = message.copy(
-                    id = message.id ?: UUID.randomUUID().toString()
-                )
+                val safeMessage = message.copy(id = message.id ?: UUID.randomUUID().toString())
 
                 Log.d(TAG, "📥 Received message from ${safeMessage.senderId}: ${safeMessage.content}")
 
@@ -143,51 +131,24 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /**
-     * Add incoming message and decrypt if needed
-     */
     private suspend fun addIncomingMessage(message: ChatMessage) {
+        if (_rawMessages.any { it.id == message.id }) return
         _rawMessages.add(message)
 
-        // If it's from someone else, decrypt it
-        if (message.senderId != currentUserId) {
-            // Add placeholder while decrypting
-            val placeholder = DisplayMessage(
-                message = message,
-                decryptedContent = "[Decrypting...]",
-                isDecrypting = true
-            )
-            _displayMessages.add(placeholder)
+        val safeMsg = message.copy(content = message.content ?: "[Empty]")
+        Log.d(TAG, "📩 Showing received message: ${safeMsg.content}")
 
-            // Decrypt in background
-            currentHttpClient?.let { client ->
-                val decrypted = decryptMessage(client, message.id!!, currentUserId!!)
-
-                // Update the display message
-                val index = _displayMessages.indexOfFirst { it.message.id == message.id }
-                if (index >= 0) {
-                    _displayMessages[index] = DisplayMessage(
-                        message = message,
-                        decryptedContent = decrypted,
-                        isDecrypting = false
-                    )
-                }
-            }
-        } else {
-            // It's our own message, show as-is
+        if (_displayMessages.none { it.message.id == safeMsg.id }) {
             _displayMessages.add(
                 DisplayMessage(
-                    message = message,
-                    decryptedContent = message.content,
+                    message = safeMsg,
+                    decryptedContent = safeMsg.content,
                     isDecrypting = false
                 )
             )
         }
     }
 
-    /**
-     * Decrypt a message from another user
-     */
     private suspend fun decryptMessage(
         httpClient: HttpClient,
         messageId: String,
@@ -214,53 +175,31 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /**
-     * Fetch chat history
-     */
     suspend fun fetchChatHistory(
         httpClient: HttpClient,
         senderId: String,
         receiverId: String
     ) {
         currentHttpClient = httpClient
-
         withContext(Dispatchers.IO) {
             try {
-                Log.d(TAG, "📚 Fetching chat history: $senderId <-> $receiverId")
-
                 val response = httpClient.get("${link}chat/history/$senderId/$receiverId")
                 val responseText = response.bodyAsText()
-
-                Log.d(TAG, "Response: $responseText")
-
                 val history = Json.decodeFromString<List<ChatMessage>>(responseText)
-
-                Log.d(TAG, "✅ Loaded ${history.size} messages from history")
 
                 _rawMessages.clear()
                 _displayMessages.clear()
 
-                // Process each historical message
                 history.forEach { msg ->
                     val safeMsg = msg.copy(id = msg.id ?: UUID.randomUUID().toString())
-                    _rawMessages.add(safeMsg)
 
-                    if (safeMsg.senderId == senderId) {
-                        // Our message - show plaintext
+                    if (_rawMessages.none { it.id == safeMsg.id }) _rawMessages.add(safeMsg)
+
+                    if (_displayMessages.none { it.message.id == safeMsg.id }) {
                         _displayMessages.add(
                             DisplayMessage(
                                 message = safeMsg,
                                 decryptedContent = safeMsg.content,
-                                isDecrypting = false
-                            )
-                        )
-                    } else {
-                        // Their message - decrypt it
-                        val decrypted = decryptMessage(httpClient, safeMsg.id!!, senderId)
-                        _displayMessages.add(
-                            DisplayMessage(
-                                message = safeMsg,
-                                decryptedContent = decrypted,
                                 isDecrypting = false
                             )
                         )
@@ -272,9 +211,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /**
-     * Send a message
-     */
     suspend fun sendMessage(
         senderId: String,
         receiverId: String,
@@ -302,16 +238,17 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 }
             )
 
-            // Add to our local list immediately (don't wait for echo from server)
             withContext(Dispatchers.Main) {
-                _rawMessages.add(message)
-                _displayMessages.add(
-                    DisplayMessage(
-                        message = message,
-                        decryptedContent = content, // Show our own message as plaintext
-                        isDecrypting = false
+                if (_displayMessages.none { it.message.id == message.id }) {
+                    _rawMessages.add(message)
+                    _displayMessages.add(
+                        DisplayMessage(
+                            message = message,
+                            decryptedContent = content,
+                            isDecrypting = false
+                        )
                     )
-                )
+                }
             }
 
         } catch (e: Exception) {
@@ -332,6 +269,3 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         disconnect()
     }
 }
-
-
-/////////////////////////////////////
