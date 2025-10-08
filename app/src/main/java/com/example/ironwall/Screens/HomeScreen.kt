@@ -59,25 +59,25 @@ import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeScreen(navController: NavController, httpClient: HttpClient) {
+fun HomeScreen(
+    navController: NavController,
+    httpClient: HttpClient,
+    currentUserId: String
+) {
     val userViewModel: UserVM = viewModel()
-    val scope = rememberCoroutineScope()
-
     var contactList by remember { mutableStateOf<List<UserAccountDto>>(emptyList()) }
     var displayUsername by remember { mutableStateOf("Guest") }
 
-    // 🔹 Fetch contacts when screen opens
-    LaunchedEffect(Unit) {
+    // Fetch contacts when screen opens
+    LaunchedEffect(currentUserId) {
         val lastUser = userViewModel.getLastUser()
         displayUsername = lastUser?.username ?: "Guest"
-        val email = lastUser?.username ?: return@LaunchedEffect
-        contactList = userViewModel.fetchContacts(httpClient, email)
+        // Use the parameter currentUserId passed from navigation
+        contactList = userViewModel.fetchContacts(httpClient, currentUserId)
     }
 
     Scaffold(
-        topBar = {
-            HomeHeader(navController = navController, displayUsername = displayUsername)
-        },
+        topBar = { HomeHeader(navController = navController, displayUsername = displayUsername) },
         floatingActionButton = {
             FloatingActionButton(
                 onClick = { navController.navigate(Screen.AddContact.route) },
@@ -104,7 +104,9 @@ fun HomeScreen(navController: NavController, httpClient: HttpClient) {
                             ChatItemRow(
                                 name = contact.username,
                                 role = contact.role ?: "User",
-                                navController = navController
+                                navController = navController,
+                                currentUserId = currentUserId,   // use parameter
+                                receiverId = contact.username    // or email if available
                             )
                         }
                     }
@@ -113,6 +115,8 @@ fun HomeScreen(navController: NavController, httpClient: HttpClient) {
         }
     )
 }
+
+
 
 @Composable
 fun HomeHeader(navController: NavController, displayUsername: String) {
@@ -160,10 +164,13 @@ fun HomeHeader(navController: NavController, displayUsername: String) {
 }
 
 @Composable
-fun ChatItemRow(name: String, role: String, navController: NavController) {
-    val currentUserId = "123" // Replace with actual logged-in user ID
-    val receiverId = "456"    // Replace with actual receiver ID
-
+fun ChatItemRow(
+    name: String,
+    role: String,
+    navController: NavController,
+    currentUserId: String,   // pass the real logged-in user
+    receiverId: String        // pass the contact's email/id
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -206,5 +213,6 @@ fun ChatItemRow(name: String, role: String, navController: NavController) {
         }
     }
 }
+
 
 

@@ -1,9 +1,14 @@
 package com.example.ironwall
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -42,6 +47,15 @@ fun AppNavigation(httpClient: HttpClient) {
     val userViewModel: UserVM = viewModel()
     val users by userViewModel.users.collectAsState(initial = emptyList())
 
+    // State to store currentUserId (email or username)
+    var currentUserId by remember { mutableStateOf("") }
+
+    // Fetch last logged-in user in a coroutine
+    LaunchedEffect(Unit) {
+        val lastUser = userViewModel.getLastUser() // suspend function
+        currentUserId = lastUser?.username ?: ""    // replace 'username' if needed
+    }
+
     // Decide start destination
     val startDestination = if (users.isNotEmpty()) {
         Screen.Login.route
@@ -61,7 +75,7 @@ fun AppNavigation(httpClient: HttpClient) {
             LoginScreen(navController = navController)
         }
 
-        // Token Entry (OTP Verification)
+        // Token Entry
         composable(
             route = Screen.TokenEntry.route + "?totpSecret={totpSecret}",
             arguments = listOf(navArgument("totpSecret") {
@@ -76,9 +90,13 @@ fun AppNavigation(httpClient: HttpClient) {
             )
         }
 
-        // Home Screen
+        // Home Screen — pass currentUserId
         composable(Screen.Home.route) {
-            HomeScreen(navController = navController, httpClient = httpClient)
+            HomeScreen(
+                navController = navController,
+                httpClient = httpClient,
+                currentUserId = currentUserId
+            )
         }
 
         // Settings
@@ -96,8 +114,7 @@ fun AppNavigation(httpClient: HttpClient) {
             )
         }
 
-
-        // Chat Screen with arguments
+        // Chat Screen
         composable(
             route = Screen.Chat.route,
             arguments = listOf(
@@ -114,7 +131,8 @@ fun AppNavigation(httpClient: HttpClient) {
                 currentUserId = currentUserId,
                 receiverId = receiverId,
                 receiverName = receiverName,
-                httpClient = httpClient
+                httpClient = httpClient,
+                navController = navController
             )
         }
     }

@@ -10,8 +10,18 @@ import kotlinx.serialization.json.Json
 
 val httpClient = HttpClient(OkHttp) {
     install(ContentNegotiation) {
-        json(Json { prettyPrint = true; isLenient = true; ignoreUnknownKeys = true })
+        json(Json {
+            prettyPrint = true
+            isLenient = true
+            ignoreUnknownKeys = true
+            encodeDefaults = true
+        })
     }
     install(WebSockets)
-    install(Logging) { level = LogLevel.ALL }
+    install(Logging) {
+        level = LogLevel.ALL
+    }
+
+    // Add this to prevent exceptions from being thrown on error responses
+    expectSuccess = false
 }
