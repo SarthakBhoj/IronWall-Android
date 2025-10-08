@@ -73,7 +73,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         // Create STOMP client
         stompClient = Stomp.over(
             Stomp.ConnectionProvider.OKHTTP,
-            "ws://10.172.8.147:8888/chat-websocket"
+            "ws://192.168.1.26:8888/chat-websocket"
         )
 
         stompClient?.lifecycle()?.subscribe { lifecycleEvent ->

@@ -38,31 +38,44 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.ironwall.Screen
+import com.example.ironwall.UserAccountDto
 import com.example.ironwall.UserVM
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.*
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import io.ktor.client.*
+import kotlinx.coroutines.launch
 
-// Data class and dummy data
-data class ChatItem(val name: String, val lastMessage: String, val time: String)
-
-val dummyChats = listOf(
-    ChatItem("Family Group", "Meeting tonight at 8 PM", "10:30 AM"),
-    ChatItem("Veterans Network", "Remember to fill out the form", "Yesterday"),
-    ChatItem("Alpha Squad", "Ops report submitted.", "2 days ago"),
-    ChatItem("Security Team", "New threat identified.", "2 days ago"),
-    ChatItem("Team Blue", "Update on the new protocol.", "3 days ago"),
-    ChatItem("Spouse Support", "Looking for local resources.", "3 days ago"),
-)
-// adding comments
-//qwertyuio
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeScreen(navController: NavController) {
+fun HomeScreen(navController: NavController, httpClient: HttpClient) {
     val userViewModel: UserVM = viewModel()
-    val users by userViewModel.users.collectAsState(initial = emptyList())
-    val lastUser = users.lastOrNull()
-    val displayUsername = lastUser?.username ?: "Guest"
+    val scope = rememberCoroutineScope()
+
+    var contactList by remember { mutableStateOf<List<UserAccountDto>>(emptyList()) }
+    var displayUsername by remember { mutableStateOf("Guest") }
+
+    // 🔹 Fetch contacts when screen opens
+    LaunchedEffect(Unit) {
+        val lastUser = userViewModel.getLastUser()
+        displayUsername = lastUser?.username ?: "Guest"
+        val email = lastUser?.username ?: return@LaunchedEffect
+        contactList = userViewModel.fetchContacts(httpClient, email)
+    }
 
     Scaffold(
         topBar = {
-            // Pass displayUsername to HomeHeader
             HomeHeader(navController = navController, displayUsername = displayUsername)
         },
         floatingActionButton = {
@@ -81,11 +94,19 @@ fun HomeScreen(navController: NavController) {
                     .background(Color.Black)
                     .padding(paddingValues)
             ) {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize()
-                ) {
-                    itemsIndexed(dummyChats) { index, chat ->
-                        ChatItemRow(chat = chat, navController = navController)
+                if (contactList.isEmpty()) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text("No contacts found", color = Color.Gray)
+                    }
+                } else {
+                    LazyColumn(modifier = Modifier.fillMaxSize()) {
+                        items(contactList) { contact ->
+                            ChatItemRow(
+                                name = contact.username,
+                                role = contact.role ?: "User",
+                                navController = navController
+                            )
+                        }
                     }
                 }
             }
@@ -93,7 +114,6 @@ fun HomeScreen(navController: NavController) {
     )
 }
 
-// HomeHeader now takes displayUsername as parameter
 @Composable
 fun HomeHeader(navController: NavController, displayUsername: String) {
     Row(
@@ -133,27 +153,25 @@ fun HomeHeader(navController: NavController, displayUsername: String) {
                 )
             }
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            IconButton(
-                onClick = { navController.navigate(Screen.Setting.route) }
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Settings,
-                    contentDescription = "Settings",
-                    tint = Color.White,
-                    modifier = Modifier.size(24.dp)
-                )
-            }
+        IconButton(onClick = { navController.navigate("settings") }) {
+            Icon(Icons.Default.Settings, contentDescription = "Settings", tint = Color.White)
         }
     }
 }
 
 @Composable
-fun ChatItemRow(chat: ChatItem, navController: NavController) {
+fun ChatItemRow(name: String, role: String, navController: NavController) {
+    val currentUserId = "123" // Replace with actual logged-in user ID
+    val receiverId = "456"    // Replace with actual receiver ID
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { navController.navigate(Screen.Chat.route) }
+            .clickable {
+                navController.navigate(
+                    Screen.Chat.createRoute(currentUserId, receiverId, name)
+                )
+            }
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -165,34 +183,28 @@ fun ChatItemRow(chat: ChatItem, navController: NavController) {
             contentAlignment = Alignment.Center
         ) {
             Text(
-                text = chat.name.first().toString(),
+                text = name.firstOrNull()?.uppercase() ?: "?",
                 color = Color.White,
                 fontWeight = FontWeight.Bold
             )
         }
         Spacer(modifier = Modifier.width(16.dp))
-        Column(
-            modifier = Modifier.weight(1f)
-        ) {
+        Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = chat.name,
+                text = name,
                 color = Color.White,
                 fontWeight = FontWeight.Bold,
                 fontSize = 16.sp
             )
             Text(
-                text = chat.lastMessage,
+                text = role,
                 color = Color.Gray,
                 fontSize = 14.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
         }
-        Text(
-            text = chat.time,
-            color = Color.Gray,
-            fontSize = 12.sp,
-            modifier = Modifier.padding(start = 8.dp)
-        )
     }
 }
+
+

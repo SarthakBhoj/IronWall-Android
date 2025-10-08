@@ -78,7 +78,7 @@ fun AppNavigation(httpClient: HttpClient) {
 
         // Home Screen
         composable(Screen.Home.route) {
-            HomeScreen(navController = navController)
+            HomeScreen(navController = navController, httpClient = httpClient)
         }
 
         // Settings

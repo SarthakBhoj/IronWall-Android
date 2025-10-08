@@ -19,6 +19,7 @@
     import io.ktor.client.request.forms.MultiPartFormDataContent
     import io.ktor.client.request.forms.formData
     import io.ktor.client.request.forms.submitFormWithBinaryData
+    import io.ktor.client.request.get
     import io.ktor.client.request.post
     import io.ktor.client.request.setBody
     import io.ktor.client.statement.HttpResponse
@@ -43,19 +44,50 @@
     import kotlinx.serialization.encodeToString
     import io.ktor.http.ContentType
     import io.ktor.http.contentType
+    import kotlinx.coroutines.flow.firstOrNull
+    import kotlinx.serialization.Serializable
+    import kotlinx.serialization.decodeFromString
+
+
 
 
     class UserVM(application: Application) : AndroidViewModel(application) {
 
-        // ===== DATABASE SETUP =====
+        // ===== DATABASE =====
         private val db = AppDatabase.getDatabase(application)
         private val dao = db.userDao()
-        val lastUser = dao.getLastUser()
-        private val link = "http://172.16.11.204:8888/"
-        // Reactive Flow of all users
+        private val link = "http://192.168.1.26:8888/"
+
+        // Flow of all users (for local cache)
         val users = dao.getAllUsers()
 
-        // ===== REGISTER USER =====
+        private val json = Json { ignoreUnknownKeys = true }
+
+        // ===== FETCH CONTACTS =====
+        suspend fun fetchContacts(httpClient: HttpClient, userEmail: String): List<UserAccountDto> {
+            return withContext(Dispatchers.IO) {
+                try {
+                    val response: HttpResponse = httpClient.get(link + "api/users/contacts/$userEmail")
+                    if (response.status.value in 200..299) {
+                        val bodyText = response.bodyAsText()
+                        Log.d("FetchContacts", "Response: $bodyText")
+                        json.decodeFromString(bodyText)
+                    } else {
+                        Log.e("FetchContacts", "Failed: ${response.status.value}")
+                        emptyList()
+                    }
+                } catch (e: Exception) {
+                    Log.e("FetchContacts", "Error: ${e.localizedMessage}")
+                    emptyList()
+                }
+            }
+        }
+
+        // ===== GET LAST USER =====
+        suspend fun getLastUser(): UserTable? = withContext(Dispatchers.IO) {
+            dao.getLastUser().firstOrNull()
+        }
+
         // ===== REGISTER USER =====
         suspend fun registerUser(
             httpClient: HttpClient,
@@ -133,22 +165,20 @@
             }
         }
 
+
+
         suspend fun verifyOtp(httpClient: HttpClient, username: String, otp: Int): String {
             return withContext(Dispatchers.IO) {
                 try {
-                    // 1️⃣ Send POST request to verify OTP
                     val response: HttpResponse = httpClient.post(link + "auth/verify-otp") {
                         contentType(ContentType.Application.Json)
                         setBody(Json.encodeToString(OtpVerifyRequest(username, otp)))
                     }
 
-                    Log.d("verifyOtp", "Raw Response: $response")
-
-                    // 2️⃣ Check if response status is in 200..299 (successful)
                     if (response.status.value in 200..299) {
-
                         val responseBody = response.bodyAsText()
-                        val userAccount = Json.decodeFromString<UserAccountDto>(responseBody)
+                        // use json with ignoreUnknownKeys
+                        val userAccount = json.decodeFromString<UserAccountDto>(responseBody)
 
                         dao.insert(
                             UserTable(
@@ -157,25 +187,17 @@
                                 pin = "" // placeholder
                             )
                         )
-                        Log.d("verifyOtp", "User inserted into local DB: ${userAccount.username}")
-
-
-                        // 5️⃣ Return success message
                         "Verification successful!"
                     } else {
-                        // 6️⃣ Handle failed verification (e.g., 401)
                         val text = response.bodyAsText()
-                        Log.d("verifyOtp", "Verification failed: $text")
                         "Verification failed: $text"
                     }
-
                 } catch (e: Exception) {
-                    // 7️⃣ Handle exceptions
-                    Log.d("verifyOtp Error", e.localizedMessage ?: "Unknown error")
                     "An error occurred: ${e.localizedMessage}"
                 }
             }
         }
+
 
 
 
