@@ -55,7 +55,8 @@ data class UserResponse(val userID: String, val username: String)
 @Serializable
 data class TokenResponse(
     val secret: String? = null,
-    val message: String? = null
+    val message: String? = null,
+    val userStatus: String?= null
 )
 
 

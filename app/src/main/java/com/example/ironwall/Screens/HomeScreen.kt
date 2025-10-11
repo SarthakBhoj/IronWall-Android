@@ -1,6 +1,8 @@
 package com.example.ironwall.Screens
 
-import android.R.attr.onClick
+import StatusViewModel
+import android.util.Log
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -14,7 +16,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -25,7 +26,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -39,21 +39,11 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.ironwall.Screen
 import com.example.ironwall.UserAccountDto
-import com.example.ironwall.UserVM
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
+import com.example.ironwall.ViewModels.UserVM
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.*
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.ui.platform.LocalContext
 import io.ktor.client.*
 import kotlinx.coroutines.launch
 
@@ -65,17 +55,44 @@ fun HomeScreen(
     currentUserId: String
 ) {
     val userViewModel: UserVM = viewModel()
+    val statusViewModel: StatusViewModel = viewModel() // ✅ Added StatusViewModel
     var contactList by remember { mutableStateOf<List<UserAccountDto>>(emptyList()) }
     var displayUsername by remember { mutableStateOf("Guest") }
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
 
-    // Fetch contacts when screen opens
+    // ------------------------------
+    // 🔹 Connect to WebSocket for Status Updates
+    // ------------------------------
     LaunchedEffect(currentUserId) {
+        // Connect when HomeScreen starts
+        statusViewModel.connectForStatusUpdates(currentUserId) {
+            coroutineScope.launch {
+                Toast.makeText(context, "⚠️ Your account has been BLOCKED by HQ!", Toast.LENGTH_LONG).show()
+                navController.navigate(Screen.Login.route) {
+                    popUpTo(Screen.Home.route) { inclusive = true }
+                }
+            }
+        }
+
+
+        // Fetch contacts when screen opens
         val lastUser = userViewModel.getLastUser()
         displayUsername = lastUser?.username ?: "Guest"
-        // Use the parameter currentUserId passed from navigation
         contactList = userViewModel.fetchContacts(httpClient, currentUserId)
     }
 
+    // ------------------------------
+    // 🔹 Observe live user status (for optional UI feedback)
+    // ------------------------------
+    val currentStatus = statusViewModel.userStatus.collectAsState()
+    currentStatus.value["status"]?.let { status ->
+        Log.d("HomeScreen", "User Status Update: $status")
+    }
+
+    // ------------------------------
+    // 🔹 UI Layout
+    // ------------------------------
     Scaffold(
         topBar = { HomeHeader(navController = navController, displayUsername = displayUsername) },
         floatingActionButton = {
@@ -105,8 +122,8 @@ fun HomeScreen(
                                 name = contact.username,
                                 role = contact.role ?: "User",
                                 navController = navController,
-                                currentUserId = currentUserId,   // use parameter
-                                receiverId = contact.username    // or email if available
+                                currentUserId = currentUserId,
+                                receiverId = contact.username
                             )
                         }
                     }
@@ -115,6 +132,7 @@ fun HomeScreen(
         }
     )
 }
+
 
 
 

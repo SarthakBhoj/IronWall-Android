@@ -38,14 +38,13 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.rememberAsyncImagePainter
 import com.example.ironwall.R
 import com.example.ironwall.Screen
-import com.example.ironwall.UserVM
+import com.example.ironwall.ViewModels.UserVM
 import io.ktor.client.HttpClient
 import kotlinx.coroutines.launch
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
-import androidx.compose.ui.graphics.asImageBitmap
 import com.example.ironwall.InfoDB.UserTable
 
 

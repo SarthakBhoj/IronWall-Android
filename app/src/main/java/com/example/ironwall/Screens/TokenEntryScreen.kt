@@ -26,7 +26,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.ironwall.Screen
-import com.example.ironwall.UserVM
+import com.example.ironwall.ViewModels.UserVM
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.serialization.kotlinx.json.json

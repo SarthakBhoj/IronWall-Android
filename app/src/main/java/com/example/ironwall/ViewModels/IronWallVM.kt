@@ -1,18 +1,18 @@
-    package com.example.ironwall
+package com.example.ironwall.ViewModels
 
     import android.app.Application
-    import android.content.Context
     import android.util.Log
 
     import androidx.lifecycle.AndroidViewModel
     import androidx.lifecycle.viewModelScope
-    import androidx.room.Room
+    import com.example.ironwall.ContactResponse
     import com.example.ironwall.InfoDB.AppDatabase
-    import com.example.ironwall.InfoDB.UserDao
     import com.example.ironwall.InfoDB.UserTable
+    import com.example.ironwall.LoginRequest
+    import com.example.ironwall.OtpVerifyRequest
+    import com.example.ironwall.RegisterResponseDto
     import com.example.ironwall.TokenResponse
-    import com.google.android.play.core.integrity.IntegrityManagerFactory
-    import com.google.android.play.core.integrity.IntegrityTokenRequest
+    import com.example.ironwall.UserAccountDto
     import io.ktor.client.HttpClient
     import io.ktor.client.call.body
 
@@ -28,35 +28,21 @@
     import io.ktor.http.HttpHeaders
 
     import io.ktor.http.contentType
-    import io.ktor.http.isSuccess
     import kotlinx.coroutines.Dispatchers
     import kotlinx.coroutines.launch
     import kotlinx.coroutines.withContext
-    import kotlin.coroutines.resume
-    import kotlin.coroutines.resumeWithException
-    import kotlin.coroutines.suspendCoroutine
-    import kotlinx.coroutines.launch
-    import kotlinx.coroutines.withContext
     import kotlinx.serialization.json.Json
-    import kotlin.coroutines.resume
-    import kotlin.coroutines.resumeWithException
-    import kotlin.coroutines.suspendCoroutine
     import kotlinx.serialization.encodeToString
     import io.ktor.http.ContentType
-    import io.ktor.http.contentType
     import kotlinx.coroutines.flow.firstOrNull
-    import kotlinx.serialization.Serializable
-    import kotlinx.serialization.decodeFromString
 
 
-
-
-    class UserVM(application: Application) : AndroidViewModel(application) {
+class UserVM(application: Application) : AndroidViewModel(application) {
 
         // ===== DATABASE =====
         private val db = AppDatabase.getDatabase(application)
         private val dao = db.userDao()
-        private val link = "http://192.168.1.26:8888/"
+        private val link = "http://10.47.187.147:8888/"
 
         // Flow of all users (for local cache)
         val users = dao.getAllUsers()
@@ -143,31 +129,39 @@
         }
 
 
-        suspend fun loginUser(httpClient: HttpClient, username: String, pin: String): String {
-            return withContext(Dispatchers.IO) {
-                try {
-                    val response: HttpResponse = httpClient.post(link + "auth/login") {
-                        contentType(ContentType.Application.Json)
-                        setBody(LoginRequest(username = username, password = pin))
+    suspend fun loginUser(httpClient: HttpClient, username: String, pin: String): String {
+        return withContext(Dispatchers.IO) {
+            try {
+                val response: HttpResponse = httpClient.post(link + "auth/login") {
+                    contentType(ContentType.Application.Json)
+                    setBody(LoginRequest(username = username, password = pin))
+                }
+
+                if (response.status.value in 200..299) {
+                    val tokenResponse = response.body<TokenResponse>()
+
+                    // 🔹 Check if user is blocked
+                    when (tokenResponse.userStatus?.uppercase()) {
+                        "BLOCKED" -> return@withContext "BLOCKED"   // revoke access
+                        "PENDING" -> return@withContext "PENDING"   // optional: show pending popup
+                        else -> return@withContext "SUCCESS"       // normal login
                     }
 
-                    return@withContext if (response.status.value in 200..299) {
-                        val tokenResponse = response.body<TokenResponse>() // contains access & refresh token
-                        // You can save the token locally if needed
-                        "Login successful!"
-                    } else {
-                        val text = response.body<String>()
-                        "Login failed: ${response.status.value} - $text"
-                    }
-                } catch (e: Exception) {
-                    "An error occurred: ${e.localizedMessage}"
+                } else {
+                    val errorText = response.bodyAsText()
+                    return@withContext "Login failed: ${response.status.value} - $errorText"
                 }
+            } catch (e: Exception) {
+                return@withContext "An error occurred: ${e.localizedMessage}"
             }
         }
+    }
 
 
 
-        suspend fun verifyOtp(httpClient: HttpClient, username: String, otp: Int): String {
+
+
+    suspend fun verifyOtp(httpClient: HttpClient, username: String, otp: Int): String {
             return withContext(Dispatchers.IO) {
                 try {
                     val response: HttpResponse = httpClient.post(link + "auth/verify-otp") {

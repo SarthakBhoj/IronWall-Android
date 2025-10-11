@@ -1,7 +1,10 @@
 package com.example.ironwall
 
+import GlobalStatusObserver
 import android.os.Bundle
+import android.util.Log
 import android.view.WindowManager
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -12,42 +15,26 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import com.example.ironwall.ui.theme.IronWallTheme
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.android.Android
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.collectAsState
+
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Enable full screen (edge-to-edge layout)
-        enableEdgeToEdge()
-
-        // Disable screenshots & screen recording for security
-        window.setFlags(
-            WindowManager.LayoutParams.FLAG_SECURE,
-            WindowManager.LayoutParams.FLAG_SECURE
-        )
-
-        // Initialize your secure HTTP client
-        val httpClient = HttpClient(Android) {
-            // Optional: Add configuration here for logging, timeouts, or SSL pinning
-        }
+        val httpClient = HttpClient(Android) { }
 
         setContent {
             IronWallTheme {
-                Scaffold(
-                    modifier = Modifier.fillMaxSize(),
-                    contentWindowInsets = WindowInsets.safeDrawing // Handles status & nav bars
-                ) { paddingValues ->
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(paddingValues)
-                    ) {
-                        // ✅ Pass HttpClient to navigation
-                        AppNavigation(httpClient = httpClient)
-                    }
+                GlobalStatusObserver(activity = this) {
+                    Log.d("Inside global state", "ABCD")
+                    AppNavigation(httpClient)
                 }
             }
         }

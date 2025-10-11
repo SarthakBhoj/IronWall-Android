@@ -8,7 +8,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.navigation.NavController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -20,6 +19,7 @@ import com.example.ironwall.Screens.LoginScreen
 import com.example.ironwall.Screens.RegistrationScreen
 import com.example.ironwall.Screens.SettingScreen
 import com.example.ironwall.Screens.TokenEntryScreen
+import com.example.ironwall.ViewModels.UserVM
 import io.ktor.client.HttpClient
 
 // --------------------------

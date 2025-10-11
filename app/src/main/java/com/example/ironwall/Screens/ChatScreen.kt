@@ -1,10 +1,10 @@
 package com.example.ironwall
 
 import android.app.Application
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -20,10 +20,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import com.example.ironwall.ViewModels.ChatViewModel
+import com.example.ironwall.ViewModels.DisplayMessage
 import io.ktor.client.HttpClient
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -228,16 +229,17 @@ fun ChatScreen(
                         state = listState,
                         contentPadding = PaddingValues(vertical = 8.dp)
                     ) {
-                        items(
-                            items = messages,
-                            key = { it.message.id ?: it.message.timestamp }
-                        ) { displayMessage ->
-                            MessageBubble(
-                                displayMessage = displayMessage,
-                                isOwnMessage = displayMessage.message.senderId == currentUserId
-                            )
+                        itemsIndexed(messages) { index, displayMessage ->
+                            key("${displayMessage.message.id}-${displayMessage.message.timestamp}-$index") {
+                                MessageBubble(
+                                    displayMessage = displayMessage,
+                                    isOwnMessage = displayMessage.message.senderId == currentUserId
+                                )
+                            }
                         }
                     }
+
+
                 }
             }
         }

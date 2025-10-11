@@ -1,30 +1,19 @@
 package com.example.ironwall.Screens
 
-import android.content.ClipData
-import android.content.ClipboardManager
-import android.content.Context
-import android.provider.ContactsContract.PinnedPositions.pin
 import android.util.Log
 import android.widget.Toast
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
@@ -51,17 +40,16 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.material3.Card
+import androidx.compose.material3.AlertDialog
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.ironwall.UserVM
+import com.example.ironwall.ViewModels.UserVM
 import com.example.ironwall.httpClient
 
 import kotlinx.coroutines.launch
+
 @Composable
 fun LoginScreen(
     navController: NavController,
@@ -71,12 +59,13 @@ fun LoginScreen(
     val users by userViewModel.users.collectAsState(initial = emptyList())
     val lastUser = users.lastOrNull()
     var username by remember { mutableStateOf(lastUser?.username ?: "") }
-
     var pin by remember { mutableStateOf("") }
-
     val focusManager = LocalFocusManager.current
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+
+    // 🔹 State for showing blocked popup
+    var showBlockedDialog by remember { mutableStateOf(false) }
 
     Box(
         modifier = modifier
@@ -110,7 +99,6 @@ fun LoginScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // 🔹 Username field
             OutlinedTextField(
                 value = username,
                 onValueChange = { username = it },
@@ -132,7 +120,6 @@ fun LoginScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // 🔹 PIN field
             OutlinedTextField(
                 value = pin,
                 onValueChange = { if (it.length <= 6) pin = it },
@@ -154,14 +141,15 @@ fun LoginScreen(
 
             TextButton(
                 onClick = { navController.navigate(Screen.Registration.route) },
-                modifier = Modifier.padding(top = 8.dp).align(Alignment.Start)
+                modifier = Modifier
+                    .padding(top = 8.dp)
+                    .align(Alignment.Start)
             ) {
                 Text("New User?", color = Color.White, fontSize = 16.sp)
             }
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // 🔹 Login button
             Button(
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(containerColor = Color.DarkGray),
@@ -173,20 +161,64 @@ fun LoginScreen(
                         }
 
                         val result = userViewModel.loginUser(httpClient, username, pin)
-                        if (result == "Login successful!") {
-                            Toast.makeText(context, "Login Successful", Toast.LENGTH_SHORT).show()
-                            navController.navigate(Screen.TokenEntry.route) {
-                                popUpTo(Screen.Login.route) { inclusive = true }
+                        when (result) {
+                            "SUCCESS" -> {
+                                Toast.makeText(context, "Login Successful", Toast.LENGTH_SHORT).show()
+                                navController.navigate(Screen.TokenEntry.route) {
+                                    popUpTo(Screen.Login.route) { inclusive = true }
+                                }
                             }
-                        } else {
-                            Log.d("Error : ", result)
-                            Toast.makeText(context, result, Toast.LENGTH_SHORT).show()
+
+                            "BLOCKED" -> {
+                                // Show revoked popup
+                                showBlockedDialog = true
+                            }
+
+                            else -> {
+                                Log.d("Error : ", result)
+                                Toast.makeText(context, result, Toast.LENGTH_SHORT).show()
+                            }
                         }
                     }
                 }
             ) {
                 Text("Enter", color = Color.White, fontSize = 20.sp)
             }
+        }
+
+        // 🚫 Revoked Authorization Dialog
+        if (showBlockedDialog) {
+            AlertDialog(
+                onDismissRequest = { showBlockedDialog = false },
+                title = {
+                    Text(
+                        text = "Access Revoked",
+                        color = Color.Red,
+                        fontWeight = FontWeight.Bold
+                    )
+                },
+                text = {
+                    Text(
+                        text = "Your authorization has been revoked by Headquarters.\nPlease contact your commanding officer for assistance.",
+                        color = Color.White
+                    )
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            showBlockedDialog = false
+                            navController.navigate(Screen.Login.route) {
+                                popUpTo(Screen.Login.route) { inclusive = true }
+                            }
+                        }
+                    ) {
+                        Text("OK", color = Color.White)
+                    }
+                },
+                containerColor = Color.DarkGray,
+                titleContentColor = Color.White,
+                textContentColor = Color.White
+            )
         }
     }
 }

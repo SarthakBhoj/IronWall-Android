@@ -1,4 +1,4 @@
-package com.example.ironwall
+package com.example.ironwall.ViewModels
 
 
 import android.app.Application
@@ -9,20 +9,16 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
-import io.ktor.client.engine.cio.CIO
-import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.get
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
-import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
@@ -67,7 +63,7 @@ data class DisplayMessage(
 
 class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val TAG = "ChatViewModel"
-    private val link = "http://192.168.1.26:8888/"
+    private val link = "http://10.47.187.147:8888/"
 
     private var stompClient: StompClient? = null
 
@@ -97,7 +93,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
         stompClient = Stomp.over(
             Stomp.ConnectionProvider.OKHTTP,
-            "ws://192.168.1.26:8888/chat-websocket"
+            "ws://10.47.187.147:8888/chat-websocket"
         )
 
         stompClient?.lifecycle()?.subscribe { event ->
@@ -147,43 +143,22 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
      * Add incoming message and decrypt if needed
      */
     private suspend fun addIncomingMessage(message: ChatMessage) {
+        // Skip if already exists in display messages
+        if (_displayMessages.any { it.message.id == message.id }) return
+
         _rawMessages.add(message)
 
-        // If it's from someone else, decrypt it
-        if (message.senderId != currentUserId) {
-            // Add placeholder while decrypting
-            val placeholder = DisplayMessage(
+        // Show message as-is
+        _displayMessages.add(
+            DisplayMessage(
                 message = message,
-                decryptedContent = "[Decrypting...]",
-                isDecrypting = true
+                decryptedContent = message.content, // show content directly
+                isDecrypting = false
             )
-            _displayMessages.add(placeholder)
-
-            // Decrypt in background
-            currentHttpClient?.let { client ->
-                val decrypted = decryptMessage(client, message.id!!, currentUserId!!)
-
-                // Update the display message
-                val index = _displayMessages.indexOfFirst { it.message.id == message.id }
-                if (index >= 0) {
-                    _displayMessages[index] = DisplayMessage(
-                        message = message,
-                        decryptedContent = decrypted,
-                        isDecrypting = false
-                    )
-                }
-            }
-        } else {
-            // It's our own message, show as-is
-            _displayMessages.add(
-                DisplayMessage(
-                    message = message,
-                    decryptedContent = message.content,
-                    isDecrypting = false
-                )
-            )
-        }
+        )
     }
+
+
 
     /**
      * Decrypt a message from another user
@@ -245,26 +220,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     val safeMsg = msg.copy(id = msg.id ?: UUID.randomUUID().toString())
                     _rawMessages.add(safeMsg)
 
-                    if (safeMsg.senderId == senderId) {
-                        // Our message - show plaintext
-                        _displayMessages.add(
-                            DisplayMessage(
-                                message = safeMsg,
-                                decryptedContent = safeMsg.content,
-                                isDecrypting = false
-                            )
+                    // Display content as-is (no decryption)
+                    _displayMessages.add(
+                        DisplayMessage(
+                            message = safeMsg,
+                            decryptedContent = safeMsg.content,
+                            isDecrypting = false
                         )
-                    } else {
-                        // Their message - decrypt it
-                        val decrypted = decryptMessage(httpClient, safeMsg.id!!, senderId)
-                        _displayMessages.add(
-                            DisplayMessage(
-                                message = safeMsg,
-                                decryptedContent = decrypted,
-                                isDecrypting = false
-                            )
-                        )
-                    }
+                    )
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "❌ Error fetching history: ${e.message}", e)
